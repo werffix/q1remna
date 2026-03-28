@@ -84,21 +84,65 @@ install_package() {
     fi
 }
 
+service_exists() {
+    command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files --type=service --all 2>/dev/null | awk '{print $1}' | grep -qx "${1}.service"
+}
+
+ensure_service_running() {
+    local service="$1"
+
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo -e "${YELLOW}systemctl недоступен. Пропускаем автозапуск сервиса ${service}.${NC}"
+        return 0
+    fi
+
+    if ! service_exists "$service"; then
+        echo -e "${YELLOW}Сервис ${service}.service не найден. Пропускаем запуск через systemd.${NC}"
+        return 0
+    fi
+
+    if ! sudo systemctl is-active --quiet "$service"; then
+        echo -e "${YELLOW}Сервис $service не запущен. Запускаем и добавляем в автозагрузку...${NC}"
+        sudo systemctl enable --now "$service"
+    fi
+}
+
+ensure_docker_engine() {
+    if ! command -v docker >/dev/null 2>&1; then
+        echo -e "${YELLOW}Docker не найден. Устанавливаем docker.io...${NC}"
+        sudo apt-get update
+        sudo apt-get install -y docker.io
+    fi
+
+    if service_exists "docker"; then
+        ensure_service_running "docker"
+    elif ! docker info >/dev/null 2>&1; then
+        echo -e "${YELLOW}docker.service не найден, но Docker CLI установлен. Пытаемся доустановить Docker Engine...${NC}"
+        sudo apt-get update
+        sudo apt-get install -y docker.io
+
+        if service_exists "docker"; then
+            ensure_service_running "docker"
+        fi
+    fi
+
+    if ! docker info >/dev/null 2>&1; then
+        echo -e "${RED}Не удалось запустить Docker Engine.${NC}"
+        echo -e "${YELLOW}Проверьте, что на сервере установлен именно Docker Engine, а не только docker CLI.${NC}"
+        exit 1
+    fi
+}
+
 install_package "git" "git"
-install_package "docker" "docker.io"
 install_package "docker-compose" "docker-compose"
 install_package "nginx" "nginx"
 install_package "curl" "curl"
 install_package "certbot" "certbot python3-certbot-nginx"
 install_package "dig" "dnsutils"
 
-for service in docker nginx; do
-    if ! sudo systemctl is-active --quiet $service; then
-        echo -e "${YELLOW}Сервис $service не запущен. Запускаем и добавляем в автозагрузку...${NC}"
-        sudo systemctl start $service
-        sudo systemctl enable $service
-    fi
-done
+ensure_docker_engine
+
+ensure_service_running "nginx"
 echo -e "${GREEN}✔ Все системные зависимости установлены.${NC}"
 
 echo -e "\n${CYAN}Шаг 2: Клонирование репозитория...${NC}"
