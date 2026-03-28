@@ -1,0 +1,32 @@
+{% for user in users %}
+<tr>
+  <td class="user-id">{{ user.telegram_id }}</td>
+  <td class="user-name">@{{ user.username or 'N/A' }}</td>
+  <td>
+    {% if user.is_banned %}
+      <span class="badge bg-red">Забанен</span>
+    {% else %}
+      <span class="badge bg-green">Активен</span>
+    {% endif %}
+  </td>
+  <td>{% if user.user_keys %}{{ user.user_keys | length }}{% else %}0{% endif %}</td>
+  <td>{{ '%.2f'|format(user.balance or 0) }}</td>
+  <td>
+    <button type="button"
+            class="btn btn-primary btn-sm btn-glass btn-user-open"
+            data-uid="{{ user.telegram_id }}"
+            data-username="{{ user.username or 'N/A' }}"
+            data-balance="{{ '%.2f'|format(user.balance or 0) }}"
+            data-device-limit="{{ user.device_limit or 3 }}"
+            data-is-banned="{{ 1 if user.is_banned else 0 }}"
+            data-referrals='{{ user.referrals|tojson|e }}'
+            data-keys='{{ user.user_keys|tojson|e }}'
+            data-subscription-link="{{ user.subscription_link or '' }}"
+            data-subscription-status="{{ user.subscription_status or '' }}"
+            data-subscription-expiry="{{ user.subscription_expiry or '' }}"
+            data-referrals-count="{{ user.referrals_count or 0 }}">
+      Открыть
+    </button>
+  </td>
+</tr>
+{% endfor %}
